@@ -1,0 +1,144 @@
+name: Gitflow Automation
+
+# Fluxo deste repositorio:
+#   feat/* ou fix/*  --PR--> dev     (aprovado -> merge automatico + apaga a branch)
+#   release/x.y.z    --PR--> main    (aprovado -> merge + cria tag e GitHub Release)
+#
+# Pre-requisito no GitHub: branches "main" e "dev" protegidas exigindo >=1
+# aprovacao antes do merge (Settings > Branches > Branch protection rules).
+#
+# A sincronizacao de dev com main apos uma release e feita manualmente
+# (merge direto, fora deste workflow).
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gitflow-automation
+  cancel-in-progress: false
+
+jobs:
+  process-pr:
+    if: github.event.review.state == 'approved'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Identificar tipo de merge (dev ou release)
+        id: branch
+        run: |
+          HEAD_REF="${{ github.event.pull_request.head.ref }}"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+
+          if [[ "$BASE_REF" == "dev" && ! "$HEAD_REF" =~ ^release/ ]]; then
+            PREFIX=$(echo "$HEAD_REF" | sed -E 's#^([^/]+)/.*#\1#')
+            NAME=$(echo "$HEAD_REF" | sed -E 's#^[^/]+/##')
+            echo "type=dev-merge" >> "$GITHUB_OUTPUT"
+            echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+            echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          elif [[ "$BASE_REF" == "main" && "$HEAD_REF" =~ ^release/v?([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "type=release" >> "$GITHUB_OUTPUT"
+            echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=unsupported" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Avisar sobre merge nao suportado
+        if: steps.branch.outputs.type == 'unsupported'
+        run: |
+          echo "::warning::PR #$PR_NUMBER (${{ steps.branch.outputs.head_ref }} -> ${{ steps.branch.outputs.base_ref }}) nao segue o padrao feat|fix/* -> dev ou release/x.y.z -> main. Nenhuma acao automatica foi executada; faca o merge manualmente se for intencional."
+
+      - name: Checkout do repositorio
+        if: steps.branch.outputs.type != 'unsupported'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar Git
+        if: steps.branch.outputs.type != 'unsupported'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Verificar conflitos de merge
+        if: steps.branch.outputs.type != 'unsupported'
+        run: |
+          BASE_REF="${{ steps.branch.outputs.base_ref }}"
+          HEAD_REF="${{ steps.branch.outputs.head_ref }}"
+          git fetch origin "$BASE_REF" "$HEAD_REF"
+
+          set +e
+          MERGE_OUTPUT=$(git merge-tree --write-tree --name-only "origin/$BASE_REF" "origin/$HEAD_REF")
+          MERGE_STATUS=$?
+          set -e
+
+          if [ "$MERGE_STATUS" -ge 1 ]; then
+            echo "::error::Existem conflitos de merge entre $HEAD_REF e $BASE_REF. Resolva antes de aprovar."
+            echo "$MERGE_OUTPUT"
+            exit 1
+          fi
+          echo "Nenhum conflito de merge encontrado."
+
+      - name: Validar atualizacao do CHANGELOG.md
+        if: steps.branch.outputs.type == 'release'
+        run: |
+          BASE_REF="${{ steps.branch.outputs.base_ref }}"
+          HEAD_REF="${{ steps.branch.outputs.head_ref }}"
+          if ! git diff --name-only "origin/$BASE_REF" "origin/$HEAD_REF" | grep -qx "CHANGELOG.md"; then
+            echo "::error::CHANGELOG.md nao foi atualizado nesta branch de release (${HEAD_REF}). Atualize-o antes do merge."
+            exit 1
+          fi
+          echo "CHANGELOG.md atualizado nesta release."
+
+      - name: Merge em dev (feat/fix) e apagar branch
+        if: steps.branch.outputs.type == 'dev-merge'
+        run: |
+          gh pr merge "$PR_NUMBER" \
+            --merge \
+            --auto \
+            --delete-branch \
+            --subject "${{ steps.branch.outputs.prefix }}: ${{ steps.branch.outputs.name }}" \
+            --body "Merge automatico apos aprovacao da dupla."
+
+      - name: Merge da release em main
+        if: steps.branch.outputs.type == 'release'
+        id: release_merge
+        run: |
+          VERSION="${{ steps.branch.outputs.version }}"
+          TAG="v${VERSION}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::A release $TAG ja existe. Abortando para evitar duplicidade."
+            exit 1
+          fi
+
+          # Merge sincrono (sem --auto): precisamos do commit na main antes de criar a tag.
+          gh pr merge "$PR_NUMBER" \
+            --merge \
+            --delete-branch \
+            --subject "release: ${VERSION}" \
+            --body "Merge automatico da release ${VERSION} para main."
+
+          git fetch origin main
+          echo "sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Criar tag e GitHub Release
+        if: steps.branch.outputs.type == 'release'
+        run: |
+          gh release create "${{ steps.release_merge.outputs.tag }}" \
+            --target "${{ steps.release_merge.outputs.sha }}" \
+            --title "Release ${{ steps.release_merge.outputs.tag }}" \
+            --generate-notes
+
+          echo "::notice::Release ${{ steps.release_merge.outputs.tag }} publicada. Lembre-se de igualar dev com main manualmente (dev ficou com o CHANGELOG.md desatualizado)."

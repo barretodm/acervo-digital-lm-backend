@@ -77,6 +77,17 @@ export async function atualizarStatus(req, res) {
   }
 }
 
+export async function reativar(req, res) {
+  try {
+    const obra = await obrasRepository.reativarObra(req.params.id);
+    if (!obra) return res.status(404).json({ error: "Obra não encontrada." });
+    res.json(obra);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao reativar obra." });
+  }
+}
+
 export async function excluir(req, res) {
   try {
     const obra = await obrasRepository.excluirObra(req.params.id);

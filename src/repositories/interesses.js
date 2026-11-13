@@ -1,5 +1,14 @@
 import { db } from "../config/db.js";
 
+export async function listarTodosInteresses() {
+  const { rows } = await db.query(
+    `SELECT id, obra_id, nome, email, telefone, mensagem, consentimento_lgpd, criado_em
+     FROM interesses
+     ORDER BY criado_em DESC`,
+  );
+  return rows;
+}
+
 export async function listarInteressesPorObra(obraId) {
   const { rows } = await db.query(
     `SELECT id, obra_id, nome, email, telefone, mensagem, consentimento_lgpd, criado_em

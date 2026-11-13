@@ -11,4 +11,5 @@ obrasRouter.get("/:id/interesses", autenticar, interessesController.listarPorObr
 obrasRouter.post("/", autenticar, obrasController.criar);
 obrasRouter.put("/:id", autenticar, obrasController.atualizar);
 obrasRouter.patch("/:id/status", autenticar, obrasController.atualizarStatus);
+obrasRouter.post("/:id/reativar", autenticar, obrasController.reativar);
 obrasRouter.delete("/:id", autenticar, obrasController.excluir);

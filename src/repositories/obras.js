@@ -125,10 +125,28 @@ export async function atualizarObra(id, dados, tecnicas) {
 }
 
 export async function atualizarStatusObra(id, status) {
-  const { rows } = await db.query("UPDATE obras SET status = $1 WHERE id = $2 RETURNING id", [
-    status,
-    id,
-  ]);
+  // RF11/RF13: ao marcar como "vendido", a obra sai do acervo ativo e vai
+  // pro historico automaticamente. Pra qualquer outro status, "ativa" nao e
+  // tocado (nao forca a obra a voltar pro acervo ativo por aqui -- isso e
+  // papel da reativacao, RF15).
+  const { rows } = await db.query(
+    `UPDATE obras
+     SET status = $1, ativa = CASE WHEN $1 = 'vendido' THEN false ELSE ativa END
+     WHERE id = $2
+     RETURNING id`,
+    [status, id],
+  );
+  if (rows.length === 0) return null;
+  return buscarObraPorId(id);
+}
+
+export async function reativarObra(id) {
+  // RF15: reativar sempre volta pro status "aberto", independente de onde
+  // a obra estava antes de ser desativada.
+  const { rows } = await db.query(
+    "UPDATE obras SET status = 'aberto', ativa = true WHERE id = $1 RETURNING id",
+    [id],
+  );
   if (rows.length === 0) return null;
   return buscarObraPorId(id);
 }

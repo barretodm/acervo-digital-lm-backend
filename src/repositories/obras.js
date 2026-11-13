@@ -27,6 +27,33 @@ export async function buscarObraPorId(id, queryable = db) {
   return rows[0];
 }
 
+export async function listarHistorico() {
+  // RF14: so obras inativas, com a contagem de interesses recebidos.
+  // Subquery em vez de JOIN com interesses pra nao inflar as linhas
+  // quando a obra tem mais de uma tecnica E mais de um interesse.
+  const { rows } = await db.query(`
+    SELECT obra.id, obra.titulo, obra.tipo, obra.artista, obra.tecnica,
+           obra.ano, obra.largura_cm, obra.altura_cm, obra.profundidade_cm,
+           obra.descricao, obra.valor, obra.status, obra.ativa,
+           obra.criado_em, obra.atualizado_em,
+           COALESCE(
+             json_agg(tecnica.nome ORDER BY tecnica.nome)
+               FILTER (WHERE tecnica.id IS NOT NULL),
+             '[]'::json
+           ) AS tecnicas,
+           (
+             SELECT COUNT(*)::int FROM interesses WHERE interesses.obra_id = obra.id
+           ) AS total_interesses
+    FROM obras AS obra
+    LEFT JOIN obra_tecnicas AS relacao ON relacao.obra_id = obra.id
+    LEFT JOIN tecnicas AS tecnica ON tecnica.id = relacao.tecnica_id
+    WHERE obra.ativa = false
+    GROUP BY obra.id
+    ORDER BY obra.atualizado_em DESC
+  `);
+  return rows;
+}
+
 async function salvarTecnicas(client, obraId, nomes) {
   await client.query("DELETE FROM obra_tecnicas WHERE obra_id = $1", [obraId]);
 

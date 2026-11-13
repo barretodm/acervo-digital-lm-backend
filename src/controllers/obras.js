@@ -21,6 +21,16 @@ export async function listar(req, res) {
   }
 }
 
+export async function listarHistorico(req, res) {
+  try {
+    const obras = await obrasRepository.listarHistorico();
+    res.json(obras);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao buscar histórico de obras." });
+  }
+}
+
 export async function buscarPorId(req, res) {
   try {
     const obra = await obrasRepository.buscarObraPorId(req.params.id);

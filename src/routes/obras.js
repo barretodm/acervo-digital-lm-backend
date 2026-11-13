@@ -6,6 +6,7 @@ import * as interessesController from "../controllers/interesses.js";
 export const obrasRouter = Router();
 
 obrasRouter.get("/", obrasController.listar);
+obrasRouter.get("/historico", autenticar, obrasController.listarHistorico);
 obrasRouter.get("/:id", obrasController.buscarPorId);
 obrasRouter.get("/:id/interesses", autenticar, interessesController.listarPorObra);
 obrasRouter.post("/", autenticar, obrasController.criar);

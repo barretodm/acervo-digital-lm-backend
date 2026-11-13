@@ -117,3 +117,8 @@ export async function atualizarStatusObra(id, status) {
   if (rows.length === 0) return null;
   return buscarObraPorId(id);
 }
+
+export async function excluirObra(id) {
+  const { rows } = await db.query("DELETE FROM obras WHERE id = $1 RETURNING id", [id]);
+  return rows[0] ?? null;
+}

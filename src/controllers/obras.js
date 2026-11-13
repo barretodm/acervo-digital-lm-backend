@@ -76,3 +76,19 @@ export async function atualizarStatus(req, res) {
     res.status(500).json({ error: "Erro ao atualizar status da obra." });
   }
 }
+
+export async function excluir(req, res) {
+  try {
+    const obra = await obrasRepository.excluirObra(req.params.id);
+    if (!obra) return res.status(404).json({ error: "Obra não encontrada." });
+    res.json({ id: obra.id });
+  } catch (error) {
+    if (error.code === "23503") {
+      return res.status(409).json({
+        error: "Não é possível excluir uma obra que possui interesses cadastrados.",
+      });
+    }
+    console.error(error);
+    res.status(500).json({ error: "Erro ao excluir obra." });
+  }
+}

@@ -3,6 +3,7 @@ import cors from 'cors'
 import { db } from './config/db.js'
 import { supabase } from './config/supabase.js'
 import { obrasRouter } from './routes/obras.js'
+import { interessesRouter } from './routes/interesses.js'
 
 const app = express()
 
@@ -10,6 +11,7 @@ app.use(cors({ origin: process.env.CORS_ORIGIN }))
 app.use(express.json())
 
 app.use('/obras', obrasRouter)
+app.use('/interesses', interessesRouter)
 
 app.get('/', async (req, res) => {
   try {

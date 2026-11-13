@@ -13,7 +13,10 @@ function normalizarObra(body) {
 
 export async function listar(req, res) {
   try {
-    const obras = await obrasRepository.listarObras();
+    const obras = await obrasRepository.listarObras({
+      tipo: req.query.tipo,
+      tecnica: req.query.tecnica,
+    });
     res.json(obras);
   } catch (error) {
     console.error(error);

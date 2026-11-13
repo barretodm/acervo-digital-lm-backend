@@ -15,8 +15,24 @@ const SELECT_OBRA = `
   LEFT JOIN tecnicas AS tecnica ON tecnica.id = relacao.tecnica_id
 `;
 
-export async function listarObras() {
-  const { rows } = await db.query(`${SELECT_OBRA} GROUP BY obra.id ORDER BY obra.criado_em DESC`);
+export async function listarObras({ tipo, tecnica } = {}) {
+  // RF02: vitrine publica, so obras ativas, com filtro opcional de tipo/tecnica.
+  const condicoes = ["obra.ativa = true"];
+  const valores = [];
+
+  if (tipo) {
+    valores.push(tipo);
+    condicoes.push(`obra.tipo = $${valores.length}`);
+  }
+  if (tecnica) {
+    valores.push(tecnica);
+    condicoes.push(`obra.tecnica = $${valores.length}`);
+  }
+
+  const { rows } = await db.query(
+    `${SELECT_OBRA} WHERE ${condicoes.join(" AND ")} GROUP BY obra.id ORDER BY obra.criado_em DESC`,
+    valores,
+  );
   return rows;
 }
 

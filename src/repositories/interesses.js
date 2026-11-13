@@ -16,7 +16,14 @@ export async function criarInteresse(dados) {
     `INSERT INTO interesses (obra_id, nome, email, telefone, mensagem, consentimento_lgpd)
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [dados.obra_id, dados.nome, dados.email, dados.telefone, dados.mensagem || null, dados.consentimento_lgpd],
+    [
+      dados.obra_id,
+      dados.nome,
+      dados.email,
+      dados.telefone,
+      dados.mensagem || null,
+      dados.consentimento_lgpd,
+    ],
   );
   return rows[0];
 }

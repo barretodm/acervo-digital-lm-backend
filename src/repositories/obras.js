@@ -21,10 +21,9 @@ export async function listarObras() {
 }
 
 export async function buscarObraPorId(id, queryable = db) {
-  const { rows } = await queryable.query(
-    `${SELECT_OBRA} WHERE obra.id = $1 GROUP BY obra.id`,
-    [id],
-  );
+  const { rows } = await queryable.query(`${SELECT_OBRA} WHERE obra.id = $1 GROUP BY obra.id`, [
+    id,
+  ]);
   return rows[0];
 }
 
@@ -39,12 +38,13 @@ async function salvarTecnicas(client, obraId, nomes) {
        RETURNING id`,
       [nome],
     );
-    const tecnicaId = rows[0]?.id
-      ?? (await client.query("SELECT id FROM tecnicas WHERE nome = $1", [nome])).rows[0].id;
-    await client.query(
-      "INSERT INTO obra_tecnicas (obra_id, tecnica_id) VALUES ($1, $2)",
-      [obraId, tecnicaId],
-    );
+    const tecnicaId =
+      rows[0]?.id ??
+      (await client.query("SELECT id FROM tecnicas WHERE nome = $1", [nome])).rows[0].id;
+    await client.query("INSERT INTO obra_tecnicas (obra_id, tecnica_id) VALUES ($1, $2)", [
+      obraId,
+      tecnicaId,
+    ]);
   }
 }
 
@@ -59,9 +59,16 @@ export async function criarObra(dados, tecnicas) {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
       [
-        dados.titulo ?? null, dados.tipo, dados.artista, dados.tecnica, dados.ano,
-        dados.largura_cm, dados.altura_cm, dados.profundidade_cm,
-        dados.descricao ?? null, dados.valor ?? null,
+        dados.titulo ?? null,
+        dados.tipo,
+        dados.artista,
+        dados.tecnica,
+        dados.ano,
+        dados.largura_cm,
+        dados.altura_cm,
+        dados.profundidade_cm,
+        dados.descricao ?? null,
+        dados.valor ?? null,
       ],
     );
     await salvarTecnicas(client, rows[0].id, tecnicas);
@@ -88,9 +95,17 @@ export async function atualizarObra(id, dados, tecnicas) {
        WHERE id = $11
        RETURNING id`,
       [
-        dados.titulo ?? null, dados.tipo, dados.artista, dados.tecnica, dados.ano,
-        dados.largura_cm, dados.altura_cm, dados.profundidade_cm,
-        dados.descricao ?? null, dados.valor ?? null, id,
+        dados.titulo ?? null,
+        dados.tipo,
+        dados.artista,
+        dados.tecnica,
+        dados.ano,
+        dados.largura_cm,
+        dados.altura_cm,
+        dados.profundidade_cm,
+        dados.descricao ?? null,
+        dados.valor ?? null,
+        id,
       ],
     );
     if (rows.length === 0) {
@@ -110,10 +125,10 @@ export async function atualizarObra(id, dados, tecnicas) {
 }
 
 export async function atualizarStatusObra(id, status) {
-  const { rows } = await db.query(
-    "UPDATE obras SET status = $1 WHERE id = $2 RETURNING id",
-    [status, id],
-  );
+  const { rows } = await db.query("UPDATE obras SET status = $1 WHERE id = $2 RETURNING id", [
+    status,
+    id,
+  ]);
   if (rows.length === 0) return null;
   return buscarObraPorId(id);
 }

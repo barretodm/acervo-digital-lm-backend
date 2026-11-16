@@ -1,5 +1,7 @@
 import * as interessesRepository from "../repositories/interesses.js";
+import * as obrasRepository from "../repositories/obras.js";
 import { validarInteresse } from "../validators/interesses.js";
+import { notificarNovoInteresse } from "../services/email.js";
 
 export async function listar(req, res) {
   try {
@@ -27,6 +29,8 @@ export async function criar(req, res) {
 
   try {
     const interesse = await interessesRepository.criarInteresse(req.body);
+    const obra = await obrasRepository.buscarObraPorId(req.body.obra_id);
+    if (obra) await notificarNovoInteresse(interesse, obra);
     res.status(201).json(interesse);
   } catch (error) {
     console.error(error);

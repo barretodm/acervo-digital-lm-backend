@@ -1,5 +1,7 @@
 import { db } from "../config/db.js";
 
+// fotos vem de subquery correlacionada (nao JOIN) pra nao multiplicar linhas
+// junto com o JOIN de tecnicas (obra com 2 fotos x 2 tecnicas viraria 4 linhas).
 const SELECT_OBRA = `
   SELECT obra.id, obra.titulo, obra.tipo, obra.artista, obra.tecnica,
          obra.ano, obra.largura_cm, obra.altura_cm, obra.profundidade_cm,
@@ -9,7 +11,14 @@ const SELECT_OBRA = `
            json_agg(tecnica.nome ORDER BY tecnica.nome)
              FILTER (WHERE tecnica.id IS NOT NULL),
            '[]'::json
-         ) AS tecnicas
+         ) AS tecnicas,
+         (
+           SELECT COALESCE(json_agg(json_build_object(
+                    'id', foto.id, 'url', foto.url, 'capa', foto.capa, 'ordem', foto.ordem
+                  ) ORDER BY foto.ordem), '[]'::json)
+           FROM fotos_obra AS foto
+           WHERE foto.obra_id = obra.id
+         ) AS fotos
   FROM obras AS obra
   LEFT JOIN obra_tecnicas AS relacao ON relacao.obra_id = obra.id
   LEFT JOIN tecnicas AS tecnica ON tecnica.id = relacao.tecnica_id
@@ -57,6 +66,13 @@ export async function listarHistorico() {
                FILTER (WHERE tecnica.id IS NOT NULL),
              '[]'::json
            ) AS tecnicas,
+           (
+             SELECT COALESCE(json_agg(json_build_object(
+                      'id', foto.id, 'url', foto.url, 'capa', foto.capa, 'ordem', foto.ordem
+                    ) ORDER BY foto.ordem), '[]'::json)
+             FROM fotos_obra AS foto
+             WHERE foto.obra_id = obra.id
+           ) AS fotos,
            (
              SELECT COUNT(*)::int FROM interesses WHERE interesses.obra_id = obra.id
            ) AS total_interesses
@@ -195,6 +211,11 @@ export async function reativarObra(id) {
 }
 
 export async function excluirObra(id) {
+  // fotos sao buscadas antes do delete porque o cascade em fotos_obra
+  // limpa as linhas do banco, mas nao os arquivos no Storage -- isso o
+  // controller resolve depois de confirmar que o delete foi bem-sucedido.
+  const { rows: fotos } = await db.query("SELECT url FROM fotos_obra WHERE obra_id = $1", [id]);
   const { rows } = await db.query("DELETE FROM obras WHERE id = $1 RETURNING id", [id]);
-  return rows[0] ?? null;
+  if (rows.length === 0) return null;
+  return { id: rows[0].id, fotos: fotos.map((foto) => foto.url) };
 }

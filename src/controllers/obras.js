@@ -1,5 +1,6 @@
 import * as obrasRepository from "../repositories/obras.js";
 import { validarObra, validarStatus, separarTecnicas } from "../validators/obras.js";
+import { removerFoto } from "../services/storage.js";
 
 function normalizarObra(body) {
   return {
@@ -105,6 +106,7 @@ export async function excluir(req, res) {
   try {
     const obra = await obrasRepository.excluirObra(req.params.id);
     if (!obra) return res.status(404).json({ error: "Obra não encontrada." });
+    await Promise.all(obra.fotos.map((url) => removerFoto(url)));
     res.json({ id: obra.id });
   } catch (error) {
     if (error.code === "23503") {
